@@ -1,0 +1,64 @@
+﻿@page "/"
+
+@inject IJSRuntime jsRuntime
+
+<PageTitle>Home</PageTitle>
+
+<div class="flex-layout">
+    <div class="code-container">
+        <StandaloneCodeEditor @ref="editor" ConstructionOptions="editorConstructionOptions" OnDidChangeModelContent="EditorDidChangeModelContent" CssClass="glsl-editor" />
+    </div>
+
+    <div class="render-container">
+        @if (shaderErrorMessage is string error)
+        {
+            <div class="alert alert-danger" role="alert">@shaderErrorMessage;</div>
+        }
+        else
+        {
+
+        }
+
+        <canvas id="renderCanvas" class="render-canvas" style="@GetCanvasStyle(@shaderErrorMessage)" />
+    </div>
+</div>
+
+@code {
+    private StandaloneCodeEditor editor = null!;
+    private string? shaderErrorMessage;
+
+    const string defaultFragmentShaderSource = "#version 300 es\n\nprecision mediump float;\n\nin vec2 uv;\n\nout vec4 fragColor;\n\nuniform float time;\n\nvoid main()\n{\n    fragColor = vec4(0.12, 0.12, 0.12, 1.0);\n}";
+
+    private StandaloneEditorConstructionOptions editorConstructionOptions(StandaloneCodeEditor editor)
+    {
+        return new StandaloneEditorConstructionOptions
+            {
+                AutomaticLayout = true,
+                Theme = "vs-dark",
+                Language = "glsl",
+                Value = defaultFragmentShaderSource
+            };
+    }
+
+    private string GetCanvasStyle(string? shaderErrorMessage)
+    {
+        return shaderErrorMessage is null ? string.Empty : "display: none";
+    }
+
+    private async Task EditorDidChangeModelContent(ModelContentChangedEvent eventArgs)
+    {
+        if (await editor.GetValue() is string text)
+        {
+            var response = await jsRuntime.InvokeAsync<string?>("compileShader", text);
+            shaderErrorMessage = response ?? null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await jsRuntime.InvokeVoidAsync("initializeWebGl", defaultFragmentShaderSource);
+        }
+    }
+}
